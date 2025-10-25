@@ -7,12 +7,17 @@ BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from utils import ensure_env_loaded
-from config import settings
+from llama_index.core.chat_engine.types import BaseChatEngine
+from llama_index.core.llms import ChatMessage, MessageRole
+
+from .config import settings
+from .llm_setup import configure_llamaindex
+from .ingest import build_or_update_index
+from .utils import get_weather_data_for_place, format_weather_response
+from .utils import ensure_env_loaded
+
 ensure_env_loaded()
-from ingest import build_or_update_index
-from llm_setup import configure_llamaindex
-from utils import get_weather_for_place, get_weather_data_for_place, format_weather_response
+
 import re
 
 

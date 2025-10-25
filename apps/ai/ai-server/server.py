@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from typing import Optional, List, Tuple
 
+from apps.ai.rag.chat import _load_system_prompt, _format_history
+from apps.ai.rag.ingest import get_rag_index
 from apps.ai.rag.llm_setup import configure_llamaindex
-from apps.ai.rag.ingest import build_or_update_index
-from apps.ai.rag.chat import _load_system_prompt
+from apps.ai.rag.utils import get_weather_data_for_place
 from llama_index.core import PromptTemplate
 
 query_engine = None
@@ -19,7 +21,9 @@ async def lifespan(app: FastAPI):
     configure_llamaindex()
     
     print("Loading RAG index from storage...")
-    index = build_or_update_index()
+    # build/load index
+    index = get_rag_index()
+    print("RAG index loaded.")
     
     print("Creating RAG query engine...")
     system_prompt = _load_system_prompt()

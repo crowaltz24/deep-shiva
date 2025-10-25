@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import json
-from utils import ensure_env_loaded
+from .utils import ensure_env_loaded
 try:
     import yaml
 except Exception:

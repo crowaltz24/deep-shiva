@@ -1,5 +1,5 @@
 import os
-from config import settings
+from .config import settings
 
 from llama_index.core import Settings as LlamaSettings
 from llama_index.embeddings.openai import OpenAIEmbedding

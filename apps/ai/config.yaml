@@ -1,12 +1,12 @@
 providers:
-  llm_provider: openai        # openai | ollama
-  embed_provider: openai      # openai | ollama
+  llm_provider: ollama # openai | ollama
+  embed_provider: ollama # openai | ollama
 
 models:
   openai_model: gpt-4o-mini
   openai_embed_model: text-embedding-3-small
   ollama_model: gemma3:4b
-  ollama_embed_model: embeddinggemma:300m
+  ollama_embed_model: nomic-embed-text
 
 ollama:
   host: http://localhost:11434
@@ -26,8 +26,8 @@ chat:
   retry_on_timeouts: 1
 
 prompt:
-  path: system_prompt.txt     # relative to apps/ai
-  text: ""                    # leave empty to use file
+  path: system_prompt.txt # relative to apps/ai
+  text: "" # leave empty to use file
 
 weather:
   past_days: 7

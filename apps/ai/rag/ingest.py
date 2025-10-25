@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from utils import ensure_env_loaded
+from .utils import ensure_env_loaded
 ensure_env_loaded()
 
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext
@@ -16,8 +16,8 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 import re
 
-from config import settings
-from llm_setup import configure_llamaindex
+from .config import settings
+from .llm_setup import configure_llamaindex
 
 STATE_FILE = Path(__file__).resolve().parents[1] / "storage/.ingest_state.json"
 
@@ -98,60 +98,37 @@ def build_or_update_index() -> VectorStoreIndex:
     need_full_rebuild = changed or set(prev.keys()) - {str(p) for p in paths} or (collection.count() == 0)
     if need_full_rebuild:
         # If changes or deletions, rebuild from all docs for simplicity & correctness
-        # Prefer high quality pdf extraction and we use normal readers for the rest
-        file_extractor = {}
-        try:
-            from llama_index.readers.file import PyMuPDFReader, PDFReader, DocxReader, CSVReader, JSONReader
-            # we try PyMuPDF first, fallback to pypdf reader if PyMuPDF not available
-            try:
-                _ = PyMuPDFReader
-                file_extractor[".pdf"] = PyMuPDFReader()
-            except Exception:
-                file_extractor[".pdf"] = PDFReader()
-            # Other formats
-            file_extractor.setdefault(".docx", DocxReader())
-            file_extractor.setdefault(".csv", CSVReader())
-            file_extractor.setdefault(".json", JSONReader())
-        except Exception:
-            # optional readers aren't present, fallback to defaults
-            file_extractor = {}
-
-        reader = SimpleDirectoryReader(
-            str((base / settings.data_dir).resolve()),
-            recursive=True,
-            file_extractor=file_extractor or None,
+        print(f"[ingest] Rebuilding index from {len(paths)} files...")
+        reader = SimpleDirectoryReader(input_files=paths)
+        docs = reader.load_data(show_progress=True, num_workers=4)
+        # This will lose history, but is required for correctness
+        # Re-create collection
+        chroma_client.delete_collection(collection_name)
+        collection = chroma_client.get_or_create_collection(collection_name)
+        vector_store = ChromaVectorStore(chroma_collection=collection)
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+        index = VectorStoreIndex.from_documents(
+            docs,
+            storage_context=storage_context,
+            show_progress=True,
         )
-        docs = reader.load_data()
-        index = VectorStoreIndex.from_documents(docs, storage_context=storage_context)
         _save_state(new_state)
-        return index
+        print("[ingest] Index rebuild complete.")
+    else:
+        print("[ingest] No file changes detected, loading existing index.")
+        index = VectorStoreIndex.from_vector_store(
+            vector_store,
+            storage_context=storage_context,
+        )
 
-    # No changes: can return index that uses existing vector store
-    return VectorStoreIndex.from_vector_store(vector_store)
+    return index
+
+
+get_rag_index = build_or_update_index
 
 
 def main() -> None:
-    print("[ingest] Starting ingestion…")
-    index = build_or_update_index()
-    # collection name is deterministic, then query chroma for vector count
-    if settings.embed_provider == "ollama":
-        embed_tag = settings.ollama_embed_model
-        embed_prefix = "ollama"
-    else:
-        embed_tag = settings.openai_embed_model
-        embed_prefix = "openai"
-    safe_tag = re.sub(r"[^a-zA-Z0-9_.-]+", "-", embed_tag).lower()
-    collection_name = f"{settings.index_name}-{embed_prefix}-{safe_tag}"
-
-    try:
-        base = Path(__file__).resolve().parents[1]
-        persist_dir = str((base / settings.chroma_path).resolve())
-        chroma_client = chromadb.PersistentClient(path=persist_dir)
-        collection = chroma_client.get_or_create_collection(collection_name)
-        n = collection.count()
-    except Exception:
-        n = "?"
-    print(f"[ingest] Done. Total vectors: {n} (collection: {collection_name})")
+    build_or_update_index()
 
 
 if __name__ == "__main__":
